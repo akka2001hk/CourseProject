@@ -1,0 +1,73 @@
+---
+title: "Run Analysis"
+author: "Alex AU"
+date: "Saturday, September 20, 2014"
+output: html_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+
+#This function read in the training set and quiz set in csv format by read.csv function in r. We clean up the data by deleting the following:-
+# 1) Columns with zero variance, 2) Columns with NA and blank spaces more than a threshold selected by the user, 3) columns 1-6 as the name of users
+# row numbers, time stamps etc should have no bearing to the prediction.
+# The clean up data is then randomly divided into a training set and a cross validation test set to predict the outcome variable "classe" with all the
+# rest of the columns/features as predictors
+# As this is a classification problem which works best with regularized logistic regression or random forest models, the random forest model of the caret
+# package is use for prediction purposes. After training the model on the train set, it is ran on the test set for cross validation to test for accuracy
+# The final model is then use to predict the classe in 20 cases.
+
+
+```{r}
+run_analysis <- function(){
+
+ori_dir = getwd()     												                            # save the current working directory
+work_dir <- paste("C:/downloads/ML",dir,sep='') 			                    # create a path where the required files are contained
+setwd(work_dir)															                              # goto the working directory
+pmltrain <- read.csv("pml-training.csv")							                    # read the training file
+quizset <- read.csv("pml-testing.csv")								                    # read the quiz set file
+training <- cleanDF(pmltrain,0.9)											                    # select predictors by choosing only columns with non "NA" rows >threshold                                        
+                                                                          #*total num of rows
+set.seed(nrow(training))													                        # set seed using the number of rows 
+inTrain = createDataPartition(training$classe, p = 0.75, list = FALSE)		# partition data into training set and test set with variable "Classe" as outcome   
+                                                                          # and all other variables as preditors
+trainset = training[ inTrain,]												                    # create the train set										
+testset = training[-inTrain,]                                             # create test set for cross validation
+modelfit = train(trainset$classe~.,model="rf",data=trainset,verbose=FALSE)# fit a random forest model to the trainset
+pred_cv <- predict(modelfit,testset)											                # predict results on test set for cross validation purposes
+sink(file="accuracy.txt")													                        # sends output of confusionmatirx to file											
+confusionMatrix(pred_cv, testset$classe)											            # check accuracy and related data using the confusionmatrix
+sink(file=NULL)															                              # return output to console
+pred_quiz <- predict(modelfit,quizset)											              # predict 20 test cases on the quiz set		 						
+write(as.character(predict_quiz),"predict_quiz.txt")		 							    # writes the prediction to file
+setwd(ori_dir)															                              # restore the original working directory
+
+}
+```
+
+```{r}
+cleanDF <- function(DF,threshold) {
+removeColumns <-nearZeroVar(DF)   											# generate a list of columns with zero variance for removal
+DF <- DF[, -c(1:6,removeColumns)]												# removes the first 6 columns and columns with zero variance from data
+v = apply(DF, 2, function(x) length(which(!is.na(x))))	# generate a list of the number of NA in each column
+i = 1
+retain = NULL
+totcol = ncol(DF)
+totrow = nrow(DF)
+while(i <= totcol) {														        # create a loop to loop through all remaining columns in data set
+if ((v[i]/totrow) >= threshold) retain <- c(i,retain)		# retain only columns with % of non-NA >= threshold set
+i =i+1
+}
+DF = DF[,as.numeric(retain)]													  # retain only the columns that pass the threshold test
+return(DF)
+}
+```
+
+
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
